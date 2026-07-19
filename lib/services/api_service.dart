@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
-  static const String baseUrl = 'https://sticks-tier-remembered-rfc.trycloudflare.com';
+  static const String baseUrl = 'https://skirts-restructuring-stat-casey.trycloudflare.com';
   static final _storage = const FlutterSecureStorage();
 
   static Future<String?> _getToken() => _storage.read(key: 'crm_token');
