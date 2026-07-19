@@ -145,6 +145,14 @@ class ApiService {
   static Future<void> deleteTask(int id) async =>
       await delete('/api/tasks/$id');
 
+  // ── Interactions ──────────────────────────────────────────────────
+  static Future<List<dynamic>> getInteractions(int customerId) async =>
+      await get('/api/customers/$customerId/interactions');
+
+  static Future<Map<String, dynamic>> createInteraction(
+      int customerId, Map<String, dynamic> data) async =>
+      await post('/api/customers/$customerId/interactions', data);
+
   // ── Users (assign üçün) ───────────────────────────────────────────
   static Future<List<dynamic>> getUsers() async =>
       await get('/api/users/');

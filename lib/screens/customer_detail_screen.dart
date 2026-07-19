@@ -19,13 +19,14 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
   List<dynamic> _contacts = [];
   List<dynamic> _quotations = [];
   List<dynamic> _tasks = [];
+  List<dynamic> _interactions = [];
   bool _loading = true;
   late TabController _tabs;
 
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 4, vsync: this);
+    _tabs = TabController(length: 5, vsync: this);
     _load();
   }
 
@@ -40,15 +41,17 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
         ApiService.getContacts(customerId: widget.id),
         ApiService.getQuotations(),
         ApiService.getTasks(),
+        ApiService.getInteractions(widget.id),
       ]);
       final allQuots = results[2] as List;
       final allTasks = results[3] as List;
       setState(() {
-        _c         = results[0] as Map<String, dynamic>;
-        _contacts  = results[1] as List;
-        _quotations = allQuots.where((q) => q['customer_id'] == widget.id).toList();
-        _tasks      = allTasks.where((t) => t['customer_id'] == widget.id).toList();
-        _loading   = false;
+        _c            = results[0] as Map<String, dynamic>;
+        _contacts     = results[1] as List;
+        _quotations   = allQuots.where((q) => q['customer_id'] == widget.id).toList();
+        _tasks        = allTasks.where((t) => t['customer_id'] == widget.id).toList();
+        _interactions = results[4] as List;
+        _loading      = false;
       });
     } catch (_) { setState(() => _loading = false); }
   }
@@ -92,6 +95,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
             Tab(text: 'Kontaktlar'),
             Tab(text: 'Təkliflər'),
             Tab(text: 'Tapşırıqlar'),
+            Tab(text: 'İnteraksiya'),
           ],
         ),
       ),
@@ -106,6 +110,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
                     _ContactsTab(),
                     _QuotationsTab(),
                     _TasksTab(),
+                    _InteractionsTab(),
                   ],
                 ),
     );
@@ -358,6 +363,140 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen>
                           if (r == true) _load();
                         },
                       ),
+                    ),
+                  );
+                },
+              ),
+      ),
+    ]);
+  }
+
+  // ── Interactions Tab ─────────────────────────────────────────────
+  Widget _InteractionsTab() {
+    const types = ['call', 'meeting', 'email', 'whatsapp', 'other'];
+    const typeLabels = {
+      'call': '📞 Zəng', 'meeting': '🤝 Görüş',
+      'email': '📧 Email', 'whatsapp': '💬 WhatsApp', 'other': '📝 Digər',
+    };
+    const typeColors = {
+      'call': AppTheme.success, 'meeting': AppTheme.primary,
+      'email': AppTheme.info, 'whatsapp': Color(0xFF25D366), 'other': AppTheme.textMuted,
+    };
+
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.all(12),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.add_comment_outlined, size: 18),
+            label: const Text('Yeni İnteraksiyanı əlavə et'),
+            onPressed: () async {
+              String selType = 'call';
+              final noteCtrl = TextEditingController();
+              final dateCtrl = TextEditingController(
+                text: DateTime.now().toIso8601String().substring(0, 16));
+              final ok = await showDialog<bool>(
+                context: context,
+                builder: (_) => StatefulBuilder(
+                  builder: (ctx, setSt) => AlertDialog(
+                    backgroundColor: AppTheme.surface,
+                    title: const Text('Yeni İnteraksiyanı əlavə et',
+                      style: TextStyle(color: AppTheme.textMain, fontSize: 16)),
+                    content: Column(mainAxisSize: MainAxisSize.min, children: [
+                      DropdownButtonFormField<String>(
+                        value: selType,
+                        dropdownColor: AppTheme.surface,
+                        style: const TextStyle(color: AppTheme.textMain),
+                        decoration: const InputDecoration(labelText: 'Növ'),
+                        items: types.map((t) => DropdownMenuItem(
+                          value: t, child: Text(typeLabels[t] ?? t))).toList(),
+                        onChanged: (v) => setSt(() => selType = v ?? selType),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: dateCtrl,
+                        style: const TextStyle(color: AppTheme.textMain),
+                        decoration: const InputDecoration(labelText: 'Tarix'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: noteCtrl,
+                        maxLines: 3,
+                        style: const TextStyle(color: AppTheme.textMain),
+                        decoration: const InputDecoration(labelText: 'Qeyd'),
+                      ),
+                    ]),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Ləğv')),
+                      TextButton(onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Əlavə et',
+                          style: TextStyle(color: AppTheme.primary))),
+                    ],
+                  ),
+                ),
+              );
+              if (ok == true) {
+                try {
+                  await ApiService.createInteraction(widget.id, {
+                    'type': selType,
+                    'interaction_date': dateCtrl.text,
+                    'notes': noteCtrl.text.trim(),
+                  });
+                  _load();
+                } catch (e) {
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Xəta: $e')));
+                }
+              }
+            },
+          ),
+        ),
+      ),
+      Expanded(
+        child: _interactions.isEmpty
+            ? Center(child: Text('İnteraksiyanı yoxdur',
+                style: TextStyle(color: AppTheme.textMuted)))
+            : ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                itemCount: _interactions.length,
+                itemBuilder: (_, i) {
+                  final it = _interactions[i];
+                  final type  = it['type'] as String? ?? 'other';
+                  final color = typeColors[type] ?? AppTheme.textMuted;
+                  final date  = (it['interaction_date'] as String? ?? '').substring(0, 10);
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(children: [
+                        Container(
+                          width: 40, height: 40,
+                          decoration: BoxDecoration(
+                            color: color.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(typeLabels[type]?.split(' ').first ?? '📝',
+                            style: const TextStyle(fontSize: 18)),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(typeLabels[type] ?? type,
+                              style: TextStyle(color: color,
+                                  fontWeight: FontWeight.w600, fontSize: 13)),
+                            Text(date, style: const TextStyle(
+                                color: AppTheme.textMuted, fontSize: 11)),
+                            if ((it['notes'] ?? '').isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(it['notes'], style: const TextStyle(
+                                  color: AppTheme.textSub, fontSize: 12)),
+                            ],
+                          ]),
+                        ),
+                      ]),
                     ),
                   );
                 },

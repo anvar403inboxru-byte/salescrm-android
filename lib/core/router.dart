@@ -8,15 +8,17 @@ import '../screens/customer_detail_screen.dart';
 import '../screens/quotations_screen.dart';
 import '../screens/tasks_screen.dart';
 import '../screens/contacts_screen.dart';
+import '../screens/sales_screen.dart';
+import '../screens/team_screen.dart';
 import '../screens/profile_screen.dart';
 
 GoRouter appRouter(AuthService auth) => GoRouter(
   initialLocation: '/dashboard',
   redirect: (ctx, state) {
     final loggedIn = auth.isLoggedIn;
-    final isLogin = state.matchedLocation == '/login';
+    final isLogin  = state.matchedLocation == '/login';
     if (!loggedIn && !isLogin) return '/login';
-    if (loggedIn && isLogin) return '/dashboard';
+    if (loggedIn  && isLogin)  return '/dashboard';
     return null;
   },
   refreshListenable: auth,
@@ -37,6 +39,8 @@ GoRouter appRouter(AuthService auth) => GoRouter(
         GoRoute(path: '/quotations', builder: (c, _) => const QuotationsScreen()),
         GoRoute(path: '/tasks',      builder: (c, _) => const TasksScreen()),
         GoRoute(path: '/contacts',   builder: (c, _) => const ContactsScreen()),
+        GoRoute(path: '/sales',      builder: (c, _) => const SalesScreen()),
+        GoRoute(path: '/team',       builder: (c, _) => const TeamScreen()),
         GoRoute(path: '/profile',    builder: (c, _) => const ProfileScreen()),
       ],
     ),
