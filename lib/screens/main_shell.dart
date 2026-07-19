@@ -21,26 +21,60 @@ class MainShell extends StatelessWidget {
     final idx = _currentIndex(context);
     return Scaffold(
       body: child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: idx,
-        backgroundColor: AppTheme.surface,
-        indicatorColor: AppTheme.primary.withOpacity(0.2),
-        onDestinationSelected: (i) {
-          switch (i) {
-            case 0: context.go('/dashboard');  break;
-            case 1: context.go('/customers');  break;
-            case 2: context.go('/quotations'); break;
-            case 3: context.go('/tasks');      break;
-            case 4: context.go('/contacts');   break;
-          }
-        },
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Dashboard'),
-          NavigationDestination(icon: Icon(Icons.people_outline),    selectedIcon: Icon(Icons.people),    label: 'Müştərilər'),
-          NavigationDestination(icon: Icon(Icons.description_outlined), selectedIcon: Icon(Icons.description), label: 'Təkliflər'),
-          NavigationDestination(icon: Icon(Icons.task_outlined),     selectedIcon: Icon(Icons.task),      label: 'Tapşırıqlar'),
-          NavigationDestination(icon: Icon(Icons.contacts_outlined), selectedIcon: Icon(Icons.contacts),  label: 'Kontaktlar'),
-        ],
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          color: AppTheme.surface,
+          border: Border(top: BorderSide(color: AppTheme.border, width: 0.5)),
+        ),
+        child: NavigationBar(
+          selectedIndex: idx,
+          backgroundColor: AppTheme.surface,
+          surfaceTintColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          elevation: 0,
+          height: 62,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          indicatorColor: AppTheme.primary.withOpacity(0.15),
+          indicatorShape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          onDestinationSelected: (i) {
+            switch (i) {
+              case 0: context.go('/dashboard');  break;
+              case 1: context.go('/customers');  break;
+              case 2: context.go('/quotations'); break;
+              case 3: context.go('/tasks');      break;
+              case 4: context.go('/contacts');   break;
+            }
+          },
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.dashboard_outlined, size: 22),
+              selectedIcon: Icon(Icons.dashboard_rounded, size: 22, color: AppTheme.primary),
+              label: 'Dashboard',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.people_outline_rounded, size: 22),
+              selectedIcon: Icon(Icons.people_rounded, size: 22, color: AppTheme.primary),
+              label: 'Müştərilər',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.receipt_long_outlined, size: 22),
+              selectedIcon: Icon(Icons.receipt_long_rounded, size: 22, color: AppTheme.primary),
+              label: 'Təkliflər',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.check_circle_outline_rounded, size: 22),
+              selectedIcon: Icon(Icons.check_circle_rounded, size: 22, color: AppTheme.primary),
+              label: 'Tapşırıqlar',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.contacts_outlined, size: 22),
+              selectedIcon: Icon(Icons.contacts_rounded, size: 22, color: AppTheme.primary),
+              label: 'Kontaktlar',
+            ),
+          ],
+        ),
       ),
     );
   }

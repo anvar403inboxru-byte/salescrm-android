@@ -6,7 +6,7 @@ import 'package:open_filex/open_filex.dart';
 import 'dart:convert';
 
 class UpdateService {
-  static const String currentVersion = '1.0.0';
+  static const String currentVersion = '1.1.0';
   static const String owner = 'anvar403inboxru-byte';
   static const String repo = 'salescrm-android';
 
