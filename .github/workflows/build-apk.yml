@@ -3,8 +3,6 @@ name: Build APK
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -33,6 +31,13 @@ jobs:
       - name: APK build et
         run: flutter build apk --release --no-tree-shake-icons
 
+      - name: Versiya al
+        id: version
+        run: |
+          VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk '{print $2}' | cut -d'+' -f1)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION-$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
+
       - name: APK-ı artifact kimi yüklə
         uses: actions/upload-artifact@v4
         with:
@@ -40,11 +45,19 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
 
-      - name: Release yarat (yalnız tag-da)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v1
+      - name: Release yarat
+        uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ORBITSON CRM v${{ steps.version.outputs.version }}
+          body: |
+            ## ORBITSON CRM ${{ steps.version.outputs.version }}
+            
+            APK-nı endirin və telefona quraşdırın.
+            
+            **Quraşdırma:** APK faylını açın → "Установить" basın
           files: build/app/outputs/flutter-apk/app-release.apk
-          name: ORBITSON CRM ${{ github.ref_name }}
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
