@@ -6,7 +6,7 @@ import 'package:open_filex/open_filex.dart';
 import 'dart:convert';
 
 class UpdateService {
-  static const String currentVersion = '1.6.0';
+  static const String currentVersion = '1.7.0';
   static const String owner = 'anvar403inboxru-byte';
   static const String repo = 'salescrm-android';
 
@@ -21,8 +21,20 @@ class UpdateService {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        final latestVersion = (data['tag_name'] as String).replaceAll('v', '');
-        if (latestVersion != currentVersion) {
+        // Tag formatı: v1.6.0 və ya v1.6.0-20260719 — yalnız X.Y.Z hissəsini al
+        final rawTag = (data['tag_name'] as String).replaceAll('v', '');
+        final latestVersion = rawTag.split('-').first;
+        // Versiyaları müqayisə et
+        final latest = latestVersion.split('.').map(int.parse).toList();
+        final current = currentVersion.split('.').map(int.parse).toList();
+        bool isNewer = false;
+        for (int i = 0; i < 3; i++) {
+          final l = i < latest.length ? latest[i] : 0;
+          final c = i < current.length ? current[i] : 0;
+          if (l > c) { isNewer = true; break; }
+          if (l < c) break;
+        }
+        if (isNewer) {
           // APK asset-i tap
           final assets = data['assets'] as List;
           for (final asset in assets) {

@@ -39,7 +39,7 @@ jobs:
         run: |
           VERSION=$(grep 'version:' pubspec.yaml | head -1 | awk '{print $2}' | cut -d'+' -f1)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=v$VERSION-$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
 
       - name: APK-ı artifact kimi yüklə
         uses: actions/upload-artifact@v4
