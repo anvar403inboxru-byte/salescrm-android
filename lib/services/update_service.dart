@@ -6,7 +6,7 @@ import 'package:open_filex/open_filex.dart';
 import 'dart:convert';
 
 class UpdateService {
-  static const String currentVersion = '1.1.0';
+  static const String currentVersion = '1.2.0';
   static const String owner = 'anvar403inboxru-byte';
   static const String repo = 'salescrm-android';
 
@@ -50,6 +50,7 @@ class UpdateService {
     final dir = await getTemporaryDirectory();
     final apkPath = '${dir.path}/orbitson_crm_$version.apk';
 
+    if (!context.mounted) return;
     showDialog(
       context: context,
       barrierDismissible: false,
