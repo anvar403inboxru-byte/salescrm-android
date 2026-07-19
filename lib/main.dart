@@ -4,9 +4,11 @@ import 'core/theme.dart';
 import 'core/router.dart';
 import 'services/auth_service.dart';
 import 'services/update_service.dart';
+import 'services/api_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await ApiService.initialize();
   final auth = AuthService();
   await auth.init();
   runApp(

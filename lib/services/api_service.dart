@@ -1,10 +1,45 @@
-import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
-  static const String baseUrl = 'https://skirts-restructuring-stat-casey.trycloudflare.com';
+  // Sabit fallback URL — Zero Trust tunnel (dəyişmir)
+  static const String _fallbackUrl = 'https://skirts-restructuring-stat-casey.trycloudflare.com';
+  static const String _configUrl = 'https://skirts-restructuring-stat-casey.trycloudflare.com/api/config';
+  
+  static String _baseUrl = _fallbackUrl;
   static final _storage = const FlutterSecureStorage();
+  static bool _initialized = false;
+
+  // App başladanda URL-i serverdən al
+  static Future<void> initialize() async {
+    if (_initialized) return;
+    try {
+      // Əvvəlcə saxlanılmış URL-i yoxla
+      final saved = await _storage.read(key: 'backend_url');
+      if (saved != null && saved.isNotEmpty) {
+        _baseUrl = saved;
+      }
+      // Serverdən yeni URL al
+      final res = await http.get(
+        Uri.parse(_configUrl),
+        headers: {'Accept': 'application/json'},
+      ).timeout(const Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final url = data['backend_url'] as String?;
+        if (url != null && url.isNotEmpty) {
+          _baseUrl = url;
+          await _storage.write(key: 'backend_url', value: url);
+        }
+      }
+    } catch (_) {
+      // Xəta olsa fallback istifadə et
+    }
+    _initialized = true;
+  }
+
+  static String get baseUrl => _baseUrl;
 
   static Future<String?> _getToken() => _storage.read(key: 'crm_token');
 
@@ -17,147 +52,142 @@ class ApiService {
     return h;
   }
 
-  // ── Auth ──────────────────────────────────────────────────────────
-  static Future<Map<String, dynamic>> login(String email, String password) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/api/auth/login'),
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: 'username=${Uri.encodeComponent(email)}&password=${Uri.encodeComponent(password)}',
+  static Future<dynamic> get(String path) async {
+    final res = await http.get(
+      Uri.parse('$_baseUrl$path'),
+      headers: await _headers(),
     );
-    if (res.statusCode != 200) throw Exception('Login xətası: ${res.statusCode}');
-    return jsonDecode(res.body);
-  }
-
-  // ── Generic ───────────────────────────────────────────────────────
-  static Future<dynamic> get(String path, {Map<String, String>? params}) async {
-    var uri = Uri.parse('$baseUrl$path');
-    if (params != null) uri = uri.replace(queryParameters: params);
-    final res = await http.get(uri, headers: await _headers());
-    if (res.statusCode == 401) throw Exception('Unauthorized');
-    if (res.statusCode >= 400) throw Exception('GET $path → ${res.statusCode}');
+    if (res.statusCode == 401) throw Exception('AUTH_ERROR');
+    if (res.statusCode >= 400) throw Exception('HTTP ${res.statusCode}');
     return jsonDecode(utf8.decode(res.bodyBytes));
   }
 
-  static Future<dynamic> post(String path, Map<String, dynamic> body) async {
+  static Future<dynamic> post(String path, Map<String, dynamic> body, {bool auth = true}) async {
     final res = await http.post(
-      Uri.parse('$baseUrl$path'),
-      headers: await _headers(),
+      Uri.parse('$_baseUrl$path'),
+      headers: await _headers(auth: auth),
       body: jsonEncode(body),
     );
-    if (res.statusCode >= 400) throw Exception('POST $path → ${res.statusCode}: ${res.body}');
+    if (res.statusCode == 401) throw Exception('AUTH_ERROR');
+    if (res.statusCode == 429) throw Exception('Çox cəhd. Bir az gözləyin.');
+    if (res.statusCode >= 400) {
+      final err = jsonDecode(utf8.decode(res.bodyBytes));
+      throw Exception(err['detail'] ?? 'Xəta baş verdi');
+    }
     return jsonDecode(utf8.decode(res.bodyBytes));
   }
 
   static Future<dynamic> put(String path, Map<String, dynamic> body) async {
     final res = await http.put(
-      Uri.parse('$baseUrl$path'),
+      Uri.parse('$_baseUrl$path'),
       headers: await _headers(),
       body: jsonEncode(body),
     );
-    if (res.statusCode >= 400) throw Exception('PUT $path → ${res.statusCode}: ${res.body}');
+    if (res.statusCode == 401) throw Exception('AUTH_ERROR');
+    if (res.statusCode >= 400) {
+      final err = jsonDecode(utf8.decode(res.bodyBytes));
+      throw Exception(err['detail'] ?? 'Xəta baş verdi');
+    }
+    return jsonDecode(utf8.decode(res.bodyBytes));
+  }
+
+  static Future<dynamic> patch(String path, Map<String, dynamic> body) async {
+    final res = await http.patch(
+      Uri.parse('$_baseUrl$path'),
+      headers: await _headers(),
+      body: jsonEncode(body),
+    );
+    if (res.statusCode == 401) throw Exception('AUTH_ERROR');
+    if (res.statusCode >= 400) {
+      final err = jsonDecode(utf8.decode(res.bodyBytes));
+      throw Exception(err['detail'] ?? 'Xəta baş verdi');
+    }
     return jsonDecode(utf8.decode(res.bodyBytes));
   }
 
   static Future<void> delete(String path) async {
     final res = await http.delete(
-      Uri.parse('$baseUrl$path'),
+      Uri.parse('$_baseUrl$path'),
       headers: await _headers(),
     );
-    if (res.statusCode >= 400) throw Exception('DELETE $path → ${res.statusCode}');
+    if (res.statusCode == 401) throw Exception('AUTH_ERROR');
+    if (res.statusCode >= 400) throw Exception('HTTP ${res.statusCode}');
+  }
+
+  // ── Auth ──────────────────────────────────────────────────────────
+  static Future<Map<String, dynamic>> login(String email, String password) async {
+    final res = await http.post(
+      Uri.parse('$_baseUrl/api/auth/login'),
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: {'username': email, 'password': password},
+    );
+    if (res.statusCode == 429) throw Exception('Çox cəhd. 1 dəqiqə gözləyin.');
+    if (res.statusCode >= 400) {
+      final err = jsonDecode(utf8.decode(res.bodyBytes));
+      throw Exception(err['detail'] ?? 'Xəta baş verdi');
+    }
+    final data = jsonDecode(utf8.decode(res.bodyBytes));
+    await _storage.write(key: 'crm_token', value: data['access_token']);
+    return data;
+  }
+
+  static Future<void> logout() async {
+    await _storage.delete(key: 'crm_token');
+    await _storage.delete(key: 'backend_url');
+    _initialized = false;
+    _baseUrl = _fallbackUrl;
+  }
+
+  static Future<bool> isLoggedIn() async {
+    final t = await _getToken();
+    return t != null;
   }
 
   // ── Customers ─────────────────────────────────────────────────────
-  static Future<List<dynamic>> getCustomers({String? search, String? status}) async {
-    final p = <String, String>{};
-    if (search != null && search.isNotEmpty) p['search'] = search;
-    if (status != null && status.isNotEmpty) p['status'] = status;
-    return await get('/api/customers/', params: p);
-  }
-
-  static Future<Map<String, dynamic>> getCustomer(int id) async =>
-      await get('/api/customers/$id');
-
-  static Future<Map<String, dynamic>> createCustomer(Map<String, dynamic> data) async =>
-      await post('/api/customers/', data);
-
-  static Future<Map<String, dynamic>> updateCustomer(int id, Map<String, dynamic> data) async =>
-      await put('/api/customers/$id', data);
-
-  static Future<void> deleteCustomer(int id) async =>
-      await delete('/api/customers/$id');
+  static Future<List<dynamic>> getCustomers() async => await get('/api/customers/');
+  static Future<Map<String, dynamic>> getCustomer(int id) async => await get('/api/customers/$id');
+  static Future<Map<String, dynamic>> createCustomer(Map<String, dynamic> data) async => await post('/api/customers/', data);
+  static Future<Map<String, dynamic>> updateCustomer(int id, Map<String, dynamic> data) async => await put('/api/customers/$id', data);
+  static Future<void> deleteCustomer(int id) async => await delete('/api/customers/$id');
 
   // ── Contacts ──────────────────────────────────────────────────────
-  static Future<List<dynamic>> getContacts({String? search, int? customerId}) async {
-    final p = <String, String>{};
-    if (search != null && search.isNotEmpty) p['search'] = search;
-    if (customerId != null) p['customer_id'] = customerId.toString();
-    return await get('/api/contacts/', params: p);
+  static Future<List<dynamic>> getContacts({int? customerId}) async {
+    final q = customerId != null ? '?customer_id=$customerId' : '';
+    return await get('/api/contacts/$q');
   }
-
-  static Future<Map<String, dynamic>> getContact(int id) async =>
-      await get('/api/contacts/$id');
-
-  static Future<Map<String, dynamic>> createContact(Map<String, dynamic> data) async =>
-      await post('/api/contacts/', data);
-
-  static Future<Map<String, dynamic>> updateContact(int id, Map<String, dynamic> data) async =>
-      await put('/api/contacts/$id', data);
-
-  static Future<void> deleteContact(int id) async =>
-      await delete('/api/contacts/$id');
-
-  // ── Quotations ────────────────────────────────────────────────────
-  static Future<List<dynamic>> getQuotations({String? status}) async {
-    final p = <String, String>{};
-    if (status != null && status.isNotEmpty) p['status'] = status;
-    return await get('/api/quotations/', params: p);
-  }
-
-  static Future<Map<String, dynamic>> getQuotation(int id) async =>
-      await get('/api/quotations/$id');
-
-  static Future<Map<String, dynamic>> createQuotation(Map<String, dynamic> data) async =>
-      await post('/api/quotations/', data);
-
-  static Future<Map<String, dynamic>> updateQuotation(int id, Map<String, dynamic> data) async =>
-      await put('/api/quotations/$id', data);
-
-  static Future<void> deleteQuotation(int id) async =>
-      await delete('/api/quotations/$id');
+  static Future<Map<String, dynamic>> createContact(Map<String, dynamic> data) async => await post('/api/contacts/', data);
+  static Future<Map<String, dynamic>> updateContact(int id, Map<String, dynamic> data) async => await put('/api/contacts/$id', data);
+  static Future<void> deleteContact(int id) async => await delete('/api/contacts/$id');
 
   // ── Tasks ─────────────────────────────────────────────────────────
-  static Future<List<dynamic>> getTasks({String? status, String? priority}) async {
-    final p = <String, String>{};
-    if (status != null && status.isNotEmpty) p['status'] = status;
-    if (priority != null && priority.isNotEmpty) p['priority'] = priority;
-    return await get('/api/tasks/', params: p);
-  }
+  static Future<List<dynamic>> getTasks() async => await get('/api/tasks/');
+  static Future<Map<String, dynamic>> createTask(Map<String, dynamic> data) async => await post('/api/tasks/', data);
+  static Future<Map<String, dynamic>> updateTask(int id, Map<String, dynamic> data) async => await put('/api/tasks/$id', data);
+  static Future<void> deleteTask(int id) async => await delete('/api/tasks/$id');
 
-  static Future<Map<String, dynamic>> getTask(int id) async =>
-      await get('/api/tasks/$id');
-
-  static Future<Map<String, dynamic>> createTask(Map<String, dynamic> data) async =>
-      await post('/api/tasks/', data);
-
-  static Future<Map<String, dynamic>> updateTask(int id, Map<String, dynamic> data) async =>
-      await put('/api/tasks/$id', data);
-
-  static Future<void> deleteTask(int id) async =>
-      await delete('/api/tasks/$id');
+  // ── Quotations ────────────────────────────────────────────────────
+  static Future<List<dynamic>> getQuotations() async => await get('/api/quotations/');
+  static Future<Map<String, dynamic>> createQuotation(Map<String, dynamic> data) async => await post('/api/quotations/', data);
+  static Future<Map<String, dynamic>> updateQuotation(int id, Map<String, dynamic> data) async => await put('/api/quotations/$id', data);
+  static Future<void> deleteQuotation(int id) async => await delete('/api/quotations/$id');
 
   // ── Interactions ──────────────────────────────────────────────────
   static Future<List<dynamic>> getInteractions(int customerId) async =>
       await get('/api/customers/$customerId/interactions');
-
-  static Future<Map<String, dynamic>> createInteraction(
-      int customerId, Map<String, dynamic> data) async =>
+  static Future<Map<String, dynamic>> createInteraction(int customerId, Map<String, dynamic> data) async =>
       await post('/api/customers/$customerId/interactions', data);
+  static Future<void> deleteInteraction(int customerId, int interactionId) async =>
+      await delete('/api/customers/$customerId/interactions/$interactionId');
+
+  // ── Sales ─────────────────────────────────────────────────────────
+  static Future<List<dynamic>> getSales() async => await get('/api/sales/');
+  static Future<Map<String, dynamic>> createSale(Map<String, dynamic> data) async => await post('/api/sales/', data);
+  static Future<Map<String, dynamic>> updateSale(int id, Map<String, dynamic> data) async => await put('/api/sales/$id', data);
+  static Future<void> deleteSale(int id) async => await delete('/api/sales/$id');
 
   // ── Users (assign üçün) ───────────────────────────────────────────
-  static Future<List<dynamic>> getUsers() async =>
-      await get('/api/users/');
+  static Future<List<dynamic>> getUsers() async => await get('/api/auth/users');
 
   // ── Dashboard ─────────────────────────────────────────────────────
-  static Future<Map<String, dynamic>> getDashboard() async =>
-      await get('/api/dashboard/stats');
+  static Future<Map<String, dynamic>> getDashboardStats() async => await get('/api/dashboard/stats');
 }
